@@ -1,25 +1,21 @@
 'use strict';
 
 const delegate = require('delegates');
-const ContextLogger = require('egg-logger').EggContextLogger;
-const Cookies = require('egg-cookies');
-const co = require('co');
-const ContextHttpClient = require('../../lib/core/context_httpclient');
-const createView = require('../../lib/core/view');
-const util = require('../../lib/core/util');
+const { assign } = require('utility');
+const eggUtils = require('egg-core').utils;
 
 const HELPER = Symbol('Context#helper');
-const VIEW = Symbol('Context#view');
 const LOCALS = Symbol('Context#locals');
 const LOCALS_LIST = Symbol('Context#localsList');
 const COOKIES = Symbol('Context#cookies');
 const CONTEXT_LOGGERS = Symbol('Context#logger');
 const CONTEXT_HTTPCLIENT = Symbol('Context#httpclient');
 
+
 const proto = module.exports = {
   get cookies() {
     if (!this[COOKIES]) {
-      this[COOKIES] = new Cookies(this, this.app.keys);
+      this[COOKIES] = new this.app.ContextCookies(this, this.app.keys);
     }
     return this[COOKIES];
   },
@@ -31,7 +27,7 @@ const proto = module.exports = {
    */
   get httpclient() {
     if (!this[CONTEXT_HTTPCLIENT]) {
-      this[CONTEXT_HTTPCLIENT] = new ContextHttpClient(this);
+      this[CONTEXT_HTTPCLIENT] = new this.app.ContextHttpClient(this);
     }
     return this[CONTEXT_HTTPCLIENT];
   },
@@ -44,8 +40,8 @@ const proto = module.exports = {
    * @param {Object} [options] - options for request.
    * @return {Object} see {@link ContextHttpClient#curl}
    */
-  * curl(url, options) {
-    return yield this.httpclient.curl(url, options);
+  curl(url, options) {
+    return this.httpclient.curl(url, options);
   },
 
   /**
@@ -97,7 +93,7 @@ const proto = module.exports = {
     if (!appLogger) return null;
 
     // write to cache
-    cache[name] = new ContextLogger(this, appLogger);
+    cache[name] = new this.app.ContextLogger(this, appLogger);
     return cache[name];
   },
 
@@ -125,51 +121,6 @@ const proto = module.exports = {
    */
   get coreLogger() {
     return this.getLogger('coreLogger');
-  },
-
-  /**
-   * View instance that is created every request
-   * @return {View} view
-   */
-  get view() {
-    if (!this[VIEW]) {
-      this[VIEW] = createView(this);
-    }
-    return this[VIEW];
-  },
-
-  /**
-   * render for template path
-   * @method Context#render
-   * @param {String} name - template path
-   * @param {Object} [locals] - locals
-   */
-  * render(name, locals) {
-    this.body = yield this.renderView(name, locals);
-  },
-
-  /**
-   * render for template path, but return string rather than writing to response
-   * @method Context#renderView
-   * @param {String} name - template path
-   * @param {Object} [locals] - locals
-   * @return {String} html string
-   * @see View#render
-   */
-  * renderView(name, locals) {
-    return yield this.view.render(name, locals);
-  },
-
-  /**
-   * render for string
-   * @method Context#renderString
-   * @param {String} tpl - template string
-   * @param {Object} [locals] - locals
-   * @return {String} html string
-   * @see View#renderString
-   */
-  * renderString(tpl, locals) {
-    return yield this.view.renderString(tpl, locals);
   },
 
   /**
@@ -201,10 +152,10 @@ const proto = module.exports = {
    */
   get locals() {
     if (!this[LOCALS]) {
-      this[LOCALS] = util.assign({}, this.app.locals);
+      this[LOCALS] = assign({}, this.app.locals);
     }
     if (this[LOCALS_LIST] && this[LOCALS_LIST].length) {
-      util.assign(this[LOCALS], this[LOCALS_LIST]);
+      assign(this[LOCALS], this[LOCALS_LIST]);
       this[LOCALS_LIST] = null;
     }
     return this[LOCALS];
@@ -231,14 +182,14 @@ const proto = module.exports = {
   },
 
   /**
-   * Run generator function in the background
-   * @param  {Generator} scope - generator function, the first args is ctx
+   * Run async function in the background
+   * @param {Function} scope - the first args is ctx
    * ```js
    * this.body = 'hi';
    *
-   * this.runInBackground(function* saveUserInfo(ctx) {
-   *   yield ctx.mysql.query(sql);
-   *   yield ctx.curl(url);
+   * this.runInBackground(async ctx => {
+   *   await ctx.mysql.query(sql);
+   *   await ctx.curl(url);
    * });
    * ```
    */
@@ -246,14 +197,16 @@ const proto = module.exports = {
     const ctx = this;
     const start = Date.now();
     /* istanbul ignore next */
-    const taskName = scope.name || '-';
-    co(function* () {
-      yield scope(ctx);
-      ctx.coreLogger.info('[egg:background] task:%s success (%dms)', taskName, Date.now() - start);
-    }).catch(err => {
-      ctx.coreLogger.info('[egg:background] task:%s fail (%dms)', taskName, Date.now() - start);
-      ctx.coreLogger.error(err);
-    });
+    const taskName = scope.name || scope._name || eggUtils.getCalleeFromStack(true);
+    // use app.toAsyncFunction to support both generator function and async function
+    ctx.app.toAsyncFunction(scope)(ctx)
+      .then(() => {
+        ctx.coreLogger.info('[egg:background] task:%s success (%dms)', taskName, Date.now() - start);
+      })
+      .catch(err => {
+        ctx.coreLogger.info('[egg:background] task:%s fail (%dms)', taskName, Date.now() - start);
+        ctx.coreLogger.error(err);
+      });
   },
 };
 
@@ -288,12 +241,6 @@ delegate(proto, 'request')
   .access('ip');
 
 delegate(proto, 'response')
-  /**
-   * @member {Void} Context#jsonp
-   * @see Response#jsonp
-   * @since 1.0.0
-   */
-  .setter('jsonp')
   /**
    * @member {Number} Context#realStatus
    * @see Response#realStatus

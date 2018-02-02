@@ -14,28 +14,6 @@ module.exports = {
   },
 
   /**
-   * userservice
-   * @member {Object} Plugin#userservice
-   * @property {Boolean} enable - `true` by default
-   * @since 1.0.0
-   */
-  userservice: {
-    enable: true,
-    package: 'egg-userservice',
-  },
-
-  /**
-   * userrole
-   * @member {Object} Plugin#userrole
-   * @property {Boolean} enable - `true` by default
-   * @since 1.0.0
-   */
-  userrole: {
-    enable: true,
-    package: 'egg-userrole',
-  },
-
-  /**
    * session
    * @member {Object} Plugin#session
    * @property {Boolean} enable - `true` by default
@@ -58,26 +36,15 @@ module.exports = {
   },
 
   /**
-   * Validate Plugin
-   * @member {Object} Plugin#validate
-   * @property {Boolean} enable - `true` by default
-   * @since 1.0.0
-   */
-  validate: {
-    enable: true,
-    package: 'egg-validate',
-  },
-
-  /**
    * file and dir watcher
    * @member {Object} Plugin#watcher
    * @property {Boolean} enable - `true` by default
    * @since 1.0.0
    */
-  watcher: {
-    enable: true,
-    package: 'egg-watcher',
-  },
+  // watcher: {
+  //   enable: false,
+  //   package: 'egg-watcher',
+  // },
 
   /**
    * multipart
@@ -108,7 +75,7 @@ module.exports = {
    * @since 1.0.0
    */
   development: {
-    enable: true,
+    enable: false,
     package: 'egg-development',
   },
 
@@ -119,7 +86,7 @@ module.exports = {
    * @since 1.0.0
    */
   logrotator: {
-    enable: true,
+    enable: false,
     package: 'egg-logrotator',
   },
 
@@ -154,5 +121,16 @@ module.exports = {
   jsonp: {
     enable: true,
     package: 'egg-jsonp',
+  },
+
+  /**
+   * view plugin
+   * @member {Function} Plugin#view
+   * @property {Boolean} enable - `true` by default
+   * @since 1.0.0
+   */
+  view: {
+    enable: true,
+    package: 'egg-view',
   },
 };
